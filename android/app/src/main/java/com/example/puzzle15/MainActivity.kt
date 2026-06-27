@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen() {
     var state by remember { mutableStateOf(GameState(tiles = GameLogic.shuffled())) }
@@ -92,6 +93,7 @@ fun GameScreen() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TileItem(value: Int, onClick: () -> Unit) {
     if (value == 0) {
