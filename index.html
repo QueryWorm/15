@@ -217,6 +217,18 @@ function shuffle() {
   render();
 }
 
+function manhattan(tiles) {
+  let dist = 0;
+  for (let i = 0; i < TOTAL; i++) {
+    const v = tiles[i];
+    if (v === 0) continue;
+    const gr = Math.floor((v - 1) / SIZE);
+    const gc = (v - 1) % SIZE;
+    dist += Math.abs(gr - Math.floor(i / SIZE)) + Math.abs(gc - (i % SIZE));
+  }
+  return dist;
+}
+
 function solve() {
   if (solving || isWin) return;
   if (tiles.every((v, i) => v === (i + 1) % TOTAL)) {
@@ -232,22 +244,31 @@ function solve() {
 
   const start = tiles.slice();
   const goal = Array.from({ length: TOTAL }, (_, i) => (i + 1) % TOTAL);
-  const queue = [[start, []]];
-  const visited = new Set();
-  visited.add(start.join(','));
-  const MAX_NODES = 200000;
+  const goalKey = goal.join(',');
+  const MAX_NODES = 500000;
+
+  const gScore = new Map();
+  const key = start.join(',');
+  gScore.set(key, 0);
+
+  const open = [{ state: start, path: [], f: manhattan(start) }];
   let nodes = 0;
 
-  function bfsStep() {
-    if (solvingAborted) {
-      cleanup();
-      return;
-    }
+  function aStarStep() {
+    if (solvingAborted) { cleanup(); return; }
 
-    for (let batch = 0; batch < 5000 && queue.length > 0 && nodes < MAX_NODES; batch++) {
-      const [state, path] = queue.shift();
+    for (let batch = 0; batch < 1000 && open.length > 0 && nodes < MAX_NODES; batch++) {
+      if (open.length === 0) break;
+      open.sort((a, b) => a.f - b.f);
+      const { state, path } = open.shift();
       nodes++;
-      statusEl.textContent = `Ищу решение... (${nodes} узлов)`;
+
+      if (nodes % 5000 === 0) {
+        statusEl.textContent = `Ищу решение... (${nodes} узлов, открыто ${open.length})`;
+      }
+
+      const sKey = state.join(',');
+      const curG = gScore.get(sKey);
 
       const emptyIdx = state.indexOf(0);
 
@@ -256,32 +277,33 @@ function solve() {
         const next = state.slice();
         next[emptyIdx] = next[i];
         next[i] = 0;
-        const key = next.join(',');
+        const k = next.join(',');
 
-        if (visited.has(key)) continue;
-        visited.add(key);
-
-        const newPath = path.concat(i);
-        if (next.every((v, idx) => v === goal[idx])) {
-          statusEl.textContent = `Решение найдено (${newPath.length} ходов)`;
-          animateSolution(newPath);
+        if (k === goalKey) {
+          const finalPath = path.concat(i);
+          statusEl.textContent = `Решение найдено (${finalPath.length} ходов)`;
+          animateSolution(finalPath);
           return;
         }
 
-        queue.push([next, newPath]);
+        const newG = curG + 1;
+        if (gScore.has(k) && gScore.get(k) <= newG) continue;
+        gScore.set(k, newG);
+
+        open.push({ state: next, path: path.concat(i), f: newG + manhattan(next) });
       }
     }
 
-    if (queue.length === 0 || nodes >= MAX_NODES) {
+    if (open.length === 0 || nodes >= MAX_NODES) {
       statusEl.textContent = 'Не удалось найти решение';
       cleanup();
       return;
     }
 
-    setTimeout(bfsStep, 0);
+    setTimeout(aStarStep, 0);
   }
 
-  bfsStep();
+  aStarStep();
 }
 
 function animateSolution(path) {
