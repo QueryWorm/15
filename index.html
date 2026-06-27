@@ -275,7 +275,6 @@ function solve() {
   document.getElementById('shuffleBtn').disabled = true;
 
   const start = tiles.slice();
-  const goal = Array.from({ length: TOTAL }, (_, i) => (i + 1) % TOTAL);
   let nodes = 0;
   let bound = heuristic(start);
   let foundPath = null;
@@ -286,15 +285,15 @@ function solve() {
     if (solvingAborted) return 'abort';
     const f = g + heuristic(state);
 
-    if (f > limit) return 'prune';
+    if (f > limit) return f;
 
-    if (g > 0 && state.every((v, i) => v === (i + 1) % TOTAL)) {
+    if (state.every((v, i) => v === (i + 1) % TOTAL)) {
       foundPath = path.slice();
       return 'found';
     }
 
     nodes++;
-    if (nodes % 100000 === 0) {
+    if (nodes % 50000 === 0) {
       statusEl.textContent = `Ищу... (${nodes} узлов, порог ${limit})`;
     }
 
@@ -333,7 +332,7 @@ function solve() {
       return;
     }
 
-    if (typeof result !== 'number' || result === Infinity) {
+    if (typeof result !== 'number' || result <= bound) {
       statusEl.textContent = 'Не удалось найти решение';
       cleanup();
       return;
