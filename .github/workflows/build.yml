@@ -10,6 +10,9 @@ on:
     paths:
       - 'android/**'
 
+env:
+  ACTIONS_RUNNER_FORCE_NODE_VERSION: 22
+
 jobs:
   build:
     runs-on: ubuntu-latest

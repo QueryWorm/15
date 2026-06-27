@@ -73,6 +73,15 @@ h1 {
   transition: background 0.2s;
 }
 .btn:hover { background: #16213e; }
+.btn.solve { background: #2d6a4f; }
+.btn.solve:hover { background: #1b4332; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.status {
+  font-size: 13px;
+  color: #888;
+  margin-top: 10px;
+  min-height: 20px;
+}
 .win-overlay {
   display: none;
   position: fixed;
@@ -101,6 +110,8 @@ h1 {
   <div class="moves">Ходов: <span id="moves">0</span></div>
   <div class="board" id="board"></div>
   <button class="btn" id="shuffleBtn">Перемешать</button>
+  <button class="btn solve" id="solveBtn">Решить</button>
+  <div class="status" id="status"></div>
 </div>
 
 <div class="win-overlay" id="winOverlay">
@@ -117,11 +128,15 @@ const TOTAL = SIZE * SIZE;
 let tiles = [];
 let moves = 0;
 let isWin = false;
+let solving = false;
+let solvingAborted = false;
 
 const boardEl = document.getElementById('board');
 const movesEl = document.getElementById('moves');
 const winOverlay = document.getElementById('winOverlay');
 const winMovesEl = document.getElementById('winMoves');
+const statusEl = document.getElementById('status');
+const solveBtn = document.getElementById('solveBtn');
 
 function init() {
   tiles = Array.from({ length: TOTAL }, (_, i) => i);
@@ -151,7 +166,7 @@ function isAdjacent(a, b) {
 }
 
 function onTileClick(idx) {
-  if (isWin) return;
+  if (isWin || solving) return;
   const emptyIdx = tiles.indexOf(0);
   if (!isAdjacent(idx, emptyIdx)) return;
   [tiles[idx], tiles[emptyIdx]] = [tiles[emptyIdx], tiles[idx]];
@@ -187,6 +202,7 @@ function isSolvable(arr) {
 }
 
 function shuffle() {
+  if (solving) return;
   do {
     for (let i = TOTAL - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -197,11 +213,110 @@ function shuffle() {
   movesEl.textContent = '0';
   isWin = false;
   winOverlay.classList.remove('show');
+  statusEl.textContent = '';
   render();
+}
+
+function solve() {
+  if (solving || isWin) return;
+  if (tiles.every((v, i) => v === (i + 1) % TOTAL)) {
+    statusEl.textContent = 'Уже решено';
+    return;
+  }
+
+  solving = true;
+  solvingAborted = false;
+  solveBtn.disabled = true;
+  document.getElementById('shuffleBtn').disabled = true;
+  statusEl.textContent = 'Ищу решение...';
+
+  const start = tiles.slice();
+  const goal = Array.from({ length: TOTAL }, (_, i) => (i + 1) % TOTAL);
+  const queue = [[start, []]];
+  const visited = new Set();
+  visited.add(start.join(','));
+  const MAX_NODES = 200000;
+  let nodes = 0;
+
+  function bfsStep() {
+    if (solvingAborted) {
+      cleanup();
+      return;
+    }
+
+    for (let batch = 0; batch < 5000 && queue.length > 0 && nodes < MAX_NODES; batch++) {
+      const [state, path] = queue.shift();
+      nodes++;
+      statusEl.textContent = `Ищу решение... (${nodes} узлов)`;
+
+      const emptyIdx = state.indexOf(0);
+
+      for (let i = 0; i < TOTAL; i++) {
+        if (!isAdjacent(i, emptyIdx)) continue;
+        const next = state.slice();
+        next[emptyIdx] = next[i];
+        next[i] = 0;
+        const key = next.join(',');
+
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        const newPath = path.concat(i);
+        if (next.every((v, idx) => v === goal[idx])) {
+          statusEl.textContent = `Решение найдено (${newPath.length} ходов)`;
+          animateSolution(newPath);
+          return;
+        }
+
+        queue.push([next, newPath]);
+      }
+    }
+
+    if (queue.length === 0 || nodes >= MAX_NODES) {
+      statusEl.textContent = 'Не удалось найти решение';
+      cleanup();
+      return;
+    }
+
+    setTimeout(bfsStep, 0);
+  }
+
+  bfsStep();
+}
+
+function animateSolution(path) {
+  let i = 0;
+  function step() {
+    if (solvingAborted) { cleanup(); return; }
+    if (i >= path.length) {
+      statusEl.textContent = 'Решено!';
+      cleanup();
+      return;
+    }
+    const idx = path[i];
+    const emptyIdx = tiles.indexOf(0);
+    [tiles[idx], tiles[emptyIdx]] = [tiles[emptyIdx], tiles[idx]];
+    moves++;
+    movesEl.textContent = moves;
+    render();
+    checkWin();
+    i++;
+    setTimeout(step, 300);
+  }
+  step();
+}
+
+function cleanup() {
+  solving = false;
+  solvingAborted = false;
+  solveBtn.disabled = false;
+  document.getElementById('shuffleBtn').disabled = false;
+  if (!statusEl.textContent) statusEl.textContent = '';
 }
 
 document.getElementById('shuffleBtn').addEventListener('click', shuffle);
 document.getElementById('winBtn').addEventListener('click', shuffle);
+solveBtn.addEventListener('click', solve);
 
 init();
 </script>
