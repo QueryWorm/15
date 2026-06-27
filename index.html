@@ -276,74 +276,74 @@ function solve() {
 
   const start = tiles.slice();
   let nodes = 0;
-  let bound = heuristic(start);
-  let foundPath = null;
+  let found = null;
+  const MAX_NODES = 5000000;
 
-  statusEl.textContent = `Ищу решение... (порог ${bound})`;
+  statusEl.textContent = 'Ищу решение...';
 
-  function dfs(state, g, path, limit, prevEmpty) {
-    if (solvingAborted) return 'abort';
-    const f = g + heuristic(state);
-
-    if (f > limit) return f;
+  function dfs(state, g, path, limit, prevEmpty, visited) {
+    if (solvingAborted) return false;
+    if (g > limit) return false;
+    if (nodes > MAX_NODES) return false;
 
     if (state.every((v, i) => v === (i + 1) % TOTAL)) {
-      foundPath = path.slice();
-      return 'found';
+      found = path.slice();
+      return true;
     }
 
     nodes++;
-    if (nodes % 50000 === 0) {
-      statusEl.textContent = `Ищу... (${nodes} узлов, порог ${limit})`;
+    if (nodes % 100000 === 0) {
+      statusEl.textContent = `Ищу... (${nodes} узлов)`;
     }
 
     const emptyIdx = state.indexOf(0);
-    let minPrune = Infinity;
+    const moves = [];
 
     for (let i = 0; i < TOTAL; i++) {
       if (i === prevEmpty) continue;
       if (!isAdjacent(i, emptyIdx)) continue;
-
       const next = state.slice();
       next[emptyIdx] = next[i];
       next[i] = 0;
-      path.push(i);
-      const res = dfs(next, g + 1, path, limit, emptyIdx);
+      const h = manhattan(next);
+      const key = next.join(',');
+      if (visited.has(key)) continue;
+      moves.push({ i, next, h, key });
+    }
+
+    moves.sort((a, b) => a.h - b.h);
+
+    for (const m of moves) {
+      visited.add(m.key);
+      path.push(m.i);
+      if (dfs(m.next, g + 1, path, limit, emptyIdx, visited)) return true;
       path.pop();
-
-      if (res === 'found') return 'found';
-      if (res === 'abort') return 'abort';
-      if (typeof res === 'number' && res < minPrune) minPrune = res;
+      visited.delete(m.key);
     }
 
-    return minPrune === Infinity ? f : minPrune;
+    return false;
   }
 
-  function idaStep() {
+  function trySolve() {
     if (solvingAborted) { cleanup(); return; }
 
-    const result = dfs(start, 0, [], bound, -1);
-
-    if (solvingAborted) { cleanup(); return; }
-
-    if (result === 'found') {
-      statusEl.textContent = `Решение найдено (${foundPath.length} ходов)`;
-      animateSolution(foundPath);
-      return;
+    for (let limit = 40; limit <= 120; limit += 10) {
+      if (solvingAborted) break;
+      statusEl.textContent = `Попытка ${limit} ходов... (${nodes} узлов)`;
+      const visited = new Set();
+      visited.add(start.join(','));
+      if (dfs(start, 0, [], limit, -1, visited)) {
+        statusEl.textContent = `Решение найдено (${found.length} ходов)`;
+        animateSolution(found);
+        return;
+      }
     }
 
-    if (typeof result !== 'number' || result <= bound) {
-      statusEl.textContent = 'Не удалось найти решение';
-      cleanup();
-      return;
-    }
-
-    bound = result;
-    statusEl.textContent = `Увеличиваю порог до ${bound} (${nodes} узлов)`;
-    setTimeout(idaStep, 10);
+    statusEl.textContent = 'Не удалось найти решение';
+    cleanup();
   }
 
-  setTimeout(idaStep, 10);
+  setTimeout(trySolve, 10);
 }
 
 function animateSolution(path) {
