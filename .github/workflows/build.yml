@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - 'android/**'
+      - '.github/**'
     branches:
       - '**'
   pull_request:
     paths:
       - 'android/**'
+      - '.github/**'
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: 'true'
