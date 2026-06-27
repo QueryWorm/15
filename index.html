@@ -229,6 +229,39 @@ function manhattan(tiles) {
   return dist;
 }
 
+function linearConflict(tiles) {
+  let conflicts = 0;
+  for (let r = 0; r < SIZE; r++) {
+    for (let a = 0; a < SIZE; a++) {
+      for (let b = a + 1; b < SIZE; b++) {
+        const va = tiles[r * SIZE + a];
+        const vb = tiles[r * SIZE + b];
+        if (va === 0 || vb === 0) continue;
+        if (Math.floor((va - 1) / SIZE) !== r) continue;
+        if (Math.floor((vb - 1) / SIZE) !== r) continue;
+        if ((va - 1) % SIZE > (vb - 1) % SIZE) conflicts += 2;
+      }
+    }
+  }
+  for (let c = 0; c < SIZE; c++) {
+    for (let a = 0; a < SIZE; a++) {
+      for (let b = a + 1; b < SIZE; b++) {
+        const va = tiles[a * SIZE + c];
+        const vb = tiles[b * SIZE + c];
+        if (va === 0 || vb === 0) continue;
+        if ((va - 1) % SIZE !== c) continue;
+        if ((vb - 1) % SIZE !== c) continue;
+        if (Math.floor((va - 1) / SIZE) > Math.floor((vb - 1) / SIZE)) conflicts += 2;
+      }
+    }
+  }
+  return conflicts;
+}
+
+function heuristic(tiles) {
+  return manhattan(tiles) + linearConflict(tiles);
+}
+
 function solve() {
   if (solving || isWin) return;
   if (tiles.every((v, i) => v === (i + 1) % TOTAL)) {
@@ -244,14 +277,14 @@ function solve() {
   const start = tiles.slice();
   const goal = Array.from({ length: TOTAL }, (_, i) => (i + 1) % TOTAL);
   let nodes = 0;
-  let bound = manhattan(start);
+  let bound = heuristic(start);
   let foundPath = null;
 
   statusEl.textContent = `Ищу решение... (порог ${bound})`;
 
   function dfs(state, g, path, limit, prevEmpty) {
     if (solvingAborted) return 'abort';
-    const f = g + manhattan(state);
+    const f = g + heuristic(state);
 
     if (f > limit) return 'prune';
 
